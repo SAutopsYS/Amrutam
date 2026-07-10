@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Amrutam Telemedicine Backend
 
 [![CI](https://github.com/amrutam/amrutam-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/amrutam/amrutam-backend/actions/workflows/ci.yml)
