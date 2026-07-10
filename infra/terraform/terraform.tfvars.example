@@ -1,0 +1,16 @@
+project_name  = "amrutam"
+environment   = "staging"
+region        = "ap-south-1"
+vpc_cidr      = "10.0.0.0/16"
+
+postgres_instance_class = "db.r6g.large"
+redis_node_type         = "cache.r6g.large"
+
+enable_kubernetes = false
+
+tags = {
+  Project     = "amrutam"
+  ManagedBy   = "terraform"
+  Application = "telemedicine-backend"
+  Environment = "staging"
+}

@@ -1,0 +1,144 @@
+{
+  "name": "amrutam-backend",
+  "version": "1.0.0",
+  "description": "Production-grade telemedicine backend for Amrutam",
+  "author": "Amrutam",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "nest build",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:prod": "node dist/main",
+    "lint": "eslint \"{src,test}/**/*.ts\" --fix",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "test:integration": "jest --config ./test/jest-integration.json",
+    "audit:deps": "npm audit --audit-level=high",
+    "docker:dev": "docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up --build",
+    "setup": "node -e \"require('child_process').execSync(process.platform==='win32'?'powershell -File scripts/setup.ps1':'bash scripts/setup.sh',{stdio:'inherit'})\"",
+    "ci:local": "node -e \"require('child_process').execSync(process.platform==='win32'?'npm run lint && npm test -- --coverage && npm run test:integration && npm run build':'bash scripts/ci-local.sh',{stdio:'inherit',shell:true})\"",
+    "docker:down": "docker compose -f docker/docker-compose.yml down",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:seed": "ts-node prisma/seed.ts",
+    "token:patient": "ts-node scripts/generate-dev-token.ts patient",
+    "token:doctor": "ts-node scripts/generate-dev-token.ts doctor",
+    "token:admin": "ts-node scripts/generate-dev-token.ts admin",
+    "loadtest:smoke": "k6 run loadtests/smoke.js",
+    "loadtest:normal": "k6 run loadtests/scenarios/normal.js",
+    "loadtest:peak": "k6 run loadtests/scenarios/peak.js",
+    "prepare": "husky install"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
+  "dependencies": {
+    "@nestjs/common": "^10.4.15",
+    "@nestjs/config": "^3.3.0",
+    "@nestjs/core": "^10.4.15",
+    "@nestjs/jwt": "^10.2.0",
+    "@nestjs/passport": "^10.0.3",
+    "@nestjs/platform-express": "^10.4.15",
+    "@nestjs/swagger": "^8.1.0",
+    "@nestjs/terminus": "^10.2.3",
+    "@nestjs/throttler": "^6.2.1",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.52.1",
+    "@opentelemetry/exporter-prometheus": "^0.56.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.56.0",
+    "@opentelemetry/resources": "^1.30.1",
+    "@opentelemetry/sdk-node": "^0.56.0",
+    "@opentelemetry/semantic-conventions": "^1.42.0",
+    "@prisma/client": "^6.1.0",
+    "bcrypt": "^5.1.1",
+    "bullmq": "^5.34.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "compression": "^1.7.5",
+    "helmet": "^8.0.0",
+    "ioredis": "^5.4.2",
+    "nest-winston": "^1.10.0",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
+    "prom-client": "^15.1.3",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "uuid": "^11.0.3",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.6.1",
+    "@commitlint/config-conventional": "^19.6.0",
+    "@nestjs/cli": "^10.4.9",
+    "@nestjs/schematics": "^10.2.3",
+    "@nestjs/testing": "^10.4.15",
+    "@types/bcrypt": "^5.0.2",
+    "@types/compression": "^1.7.5",
+    "@types/express": "^5.0.0",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.2",
+    "@types/passport-jwt": "^4.0.1",
+    "@types/supertest": "^6.0.2",
+    "@types/uuid": "^10.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.18.1",
+    "@typescript-eslint/parser": "^8.18.1",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.2.1",
+    "husky": "^9.1.7",
+    "jest": "^29.7.0",
+    "lint-staged": "^15.2.11",
+    "prettier": "^3.4.2",
+    "prisma": "^6.1.0",
+    "source-map-support": "^0.5.21",
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.7.2"
+  },
+  "lint-staged": {
+    "*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ]
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": ".",
+    "testRegex": "test/unit/.*\\.spec\\.ts$",
+    "testPathIgnorePatterns": ["/node_modules/", "\\.integration\\.spec\\.ts$"],
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "collectCoverageFrom": [
+      "src/**/*.ts",
+      "!src/main.ts",
+      "!src/**/*.module.ts"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "lines": 17,
+        "statements": 17,
+        "functions": 10,
+        "branches": 7
+      }
+    },
+    "testEnvironment": "node",
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/src/$1",
+      "^@modules/(.*)$": "<rootDir>/src/modules/$1",
+      "^@common/(.*)$": "<rootDir>/src/common/$1",
+      "^@config/(.*)$": "<rootDir>/src/config/$1",
+      "^@database/(.*)$": "<rootDir>/src/database/$1"
+    }
+  }
+}

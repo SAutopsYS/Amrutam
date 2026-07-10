@@ -1,0 +1,2229 @@
+openapi: 3.1.0
+info:
+  title: Amrutam Telemedicine API
+  version: 1.0.0
+  description: |
+    Production-grade REST API for an Ayurveda telemedicine platform.
+
+    ## Authentication
+    Protected endpoints require a JWT bearer token:
+    ```
+    Authorization: Bearer <access_token>
+    ```
+    Obtain tokens via `POST /api/v1/auth/login`.
+
+    ## Idempotency
+    `POST /api/v1/appointments` requires an `Idempotency-Key` header (UUID recommended).
+
+    ## Response Envelope
+    Success: `{ success, data, meta, requestId, timestamp }`
+    Error: `{ success: false, code, message, details, requestId, timestamp }`
+  contact:
+    name: Amrutam Engineering
+  license:
+    name: UNLICENSED
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Local development
+
+tags:
+  - name: Auth
+    description: Registration, login, token rotation, profile
+  - name: Doctors
+    description: Doctor discovery, slots, and leave management
+  - name: Appointments
+    description: Booking, cancel, reschedule with idempotency
+  - name: Consultations
+    description: Clinical consultation lifecycle and notes
+  - name: Prescriptions
+    description: Immutable prescription versioning
+  - name: Payments
+    description: Payment initiation, webhooks, refunds
+  - name: Notifications
+    description: In-app notification delivery
+  - name: Admin
+    description: Dashboard, analytics, audit, search (Admin role)
+  - name: Health
+    description: Kubernetes liveness and readiness probes
+  - name: Metrics
+    description: Prometheus scrape endpoint
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token from POST /auth/login
+    idempotencyKey:
+      type: apiKey
+      in: header
+      name: Idempotency-Key
+      description: Client-generated UUID for idempotent booking
+
+  schemas:
+    SuccessEnvelope:
+      type: object
+      required: [success, data, requestId, timestamp]
+      properties:
+        success:
+          type: boolean
+          const: true
+        data: {}
+        meta:
+          type: object
+        requestId:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+
+    ErrorEnvelope:
+      type: object
+      required: [success, code, message, requestId, timestamp]
+      properties:
+        success:
+          type: boolean
+          const: false
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+        details:
+          nullable: true
+        requestId:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+
+    RegisterRequest:
+      type: object
+      required: [email, password, firstName, lastName]
+      properties:
+        email:
+          type: string
+          format: email
+          example: patient@example.com
+        password:
+          type: string
+          minLength: 8
+          example: Password123!
+        firstName:
+          type: string
+          example: Rahul
+        lastName:
+          type: string
+          example: Sharma
+        phone:
+          type: string
+          example: "919876543210"
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: patient@amrutam.test
+        password:
+          type: string
+          example: Password123!
+
+    RefreshTokenRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        timezone:
+          type: string
+          example: Asia/Kolkata
+        language:
+          type: string
+          example: en
+
+    AuthTokens:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresIn:
+          type: string
+          example: 15m
+
+    CreateAppointmentRequest:
+      type: object
+      required: [doctorId, slotId]
+      properties:
+        doctorId:
+          type: string
+          format: uuid
+        slotId:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          maxLength: 500
+        notes:
+          type: string
+          maxLength: 1000
+
+    RescheduleAppointmentRequest:
+      type: object
+      required: [newSlotId]
+      properties:
+        newSlotId:
+          type: string
+          format: uuid
+        reason:
+          type: string
+
+    CancelAppointmentRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+
+    CreateSlotRequest:
+      type: object
+      required: [startTime, endTime]
+      properties:
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+
+    CreateLeaveRequest:
+      type: object
+      required: [startDate, endDate]
+      properties:
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        reason:
+          type: string
+
+    PrescriptionItem:
+      type: object
+      required: [medicineName, strength, dosage, frequency, durationDays]
+      properties:
+        medicineName:
+          type: string
+        genericName:
+          type: string
+        strength:
+          type: string
+        dosage:
+          type: string
+        frequency:
+          type: string
+        durationDays:
+          type: integer
+          minimum: 1
+        instructions:
+          type: string
+        foodRelation:
+          type: string
+          enum: [BEFORE_FOOD, AFTER_FOOD, WITH_FOOD, EMPTY_STOMACH]
+        notes:
+          type: string
+
+    PrescriptionRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/PrescriptionItem'
+        notes:
+          type: string
+
+    InitiatePaymentRequest:
+      type: object
+      required: [appointmentId]
+      properties:
+        appointmentId:
+          type: string
+          format: uuid
+        idempotencyKey:
+          type: string
+
+    RefundPaymentRequest:
+      type: object
+      required: [amount]
+      properties:
+        amount:
+          type: number
+          minimum: 0.01
+        reason:
+          type: string
+
+    CompleteConsultationRequest:
+      type: object
+      properties:
+        followUpDate:
+          type: string
+          format: date
+        followUpNotes:
+          type: string
+
+    ClinicalNoteRequest:
+      type: object
+      properties:
+        chiefComplaint:
+          type: string
+        symptoms:
+          type: string
+        diagnosis:
+          type: string
+        observations:
+          type: string
+        doctorNotes:
+          type: string
+        advice:
+          type: string
+        followUpInstructions:
+          type: string
+
+  responses:
+    Unauthorized:
+      description: Invalid or missing bearer token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            code: UNAUTHORIZED
+            message: Invalid or missing bearer token
+            details: null
+            requestId: 550e8400-e29b-41d4-a716-446655440000
+            timestamp: '2026-07-10T12:00:00.000Z'
+    Forbidden:
+      description: Insufficient role or resource access
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            code: FORBIDDEN
+            message: Insufficient role or resource access
+            details: null
+            requestId: 550e8400-e29b-41d4-a716-446655440000
+            timestamp: '2026-07-10T12:00:00.000Z'
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            code: VALIDATION_ERROR
+            message: Request validation failed
+            details: ['doctorId must be a UUID']
+            requestId: 550e8400-e29b-41d4-a716-446655440000
+            timestamp: '2026-07-10T12:00:00.000Z'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            code: NOT_FOUND
+            message: Resource not found
+            details: null
+            requestId: 550e8400-e29b-41d4-a716-446655440000
+            timestamp: '2026-07-10T12:00:00.000Z'
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            code: SLOT_ALREADY_BOOKED
+            message: Slot is no longer available
+            details: null
+            requestId: 550e8400-e29b-41d4-a716-446655440000
+            timestamp: '2026-07-10T12:00:00.000Z'
+    TooManyRequests:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            code: FORBIDDEN
+            message: Rate limit exceeded
+            details: null
+            requestId: 550e8400-e29b-41d4-a716-446655440000
+            timestamp: '2026-07-10T12:00:00.000Z'
+    InternalError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            code: INTERNAL_ERROR
+            message: An unexpected error occurred
+            details: null
+            requestId: 550e8400-e29b-41d4-a716-446655440000
+            timestamp: '2026-07-10T12:00:00.000Z'
+
+  parameters:
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      schema:
+        type: string
+        format: uuid
+      description: Request correlation ID for distributed tracing
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new patient account
+      description: Creates a patient user with bcrypt-hashed password, profile, and issues initial JWT token pair. Audited as REGISTER.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              email: patient@example.com
+              password: Password123!
+              firstName: Rahul
+              lastName: Sharma
+              phone: "919876543210"
+      responses:
+        '201':
+          description: Account created with tokens
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              example:
+                success: true
+                data:
+                  user:
+                    id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                    email: patient@example.com
+                    roles: [Patient]
+                  accessToken: eyJhbGciOiJIUzI1NiIs...
+                  refreshToken: eyJhbGciOiJIUzI1NiIs...
+                  expiresIn: 15m
+                meta: {}
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                code: CONFLICT
+                message: Email already registered
+                details: null
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login with email and password
+      description: Validates credentials, updates lastLoginAt, audits LOGIN or FAILED_LOGIN, returns access + refresh token pair.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: patient@amrutam.test
+              password: Password123!
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  user:
+                    id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                    email: patient@amrutam.test
+                    roles: [Patient]
+                  accessToken: eyJhbGciOiJIUzI1NiIs...
+                  refreshToken: eyJhbGciOiJIUzI1NiIs...
+                  expiresIn: 15m
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              example:
+                success: false
+                code: INVALID_CREDENTIALS
+                message: Invalid email or password
+                details: null
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '403':
+          description: Account inactive
+          content:
+            application/json:
+              example:
+                success: false
+                code: ACCOUNT_INACTIVE
+                message: Account is not active
+                details: null
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Rotate refresh token
+      description: Verifies refresh JWT, revokes stored hash, issues new access + refresh pair. Prevents refresh token reuse.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+            example:
+              refreshToken: eyJhbGciOiJIUzI1NiIs...
+      responses:
+        '200':
+          description: New token pair issued
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  accessToken: eyJhbGciOiJIUzI1NiIs...
+                  refreshToken: eyJhbGciOiJIUzI1NiIs...
+                  expiresIn: 15m
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Revoke refresh token and end session
+      description: Marks refresh token as revoked in database. Requires valid access token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Logged out
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  loggedOut: true
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user profile
+      description: Returns authenticated user profile and roles.
+      responses:
+        '200':
+          description: Profile retrieved
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                  email: patient@amrutam.test
+                  roles: [Patient]
+                  profile:
+                    firstName: Rahul
+                    lastName: Sharma
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      tags: [Auth]
+      summary: Update current user profile
+      description: Updates profile fields. Audited as PROFILE_UPDATE.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+            example:
+              firstName: Rahul
+              timezone: Asia/Kolkata
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  firstName: Rahul
+                  timezone: Asia/Kolkata
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /doctors:
+    get:
+      tags: [Doctors]
+      summary: Search verified doctors
+      description: Public endpoint. Returns VERIFIED doctors supporting online consultations. Results cached 60s via Redis cache-aside.
+      security: []
+      parameters:
+        - name: keyword
+          in: query
+          schema:
+            type: string
+          description: Search name, bio, or specialization
+        - name: specialization
+          in: query
+          schema:
+            type: string
+          example: ayurveda
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        '200':
+          description: Doctor list
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  - id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                    name: Dr. Ananya Patel
+                    yearsOfExperience: 12
+                    consultationFee: 500
+                    specializations:
+                      - name: Ayurveda
+                        slug: ayurveda
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /doctors/me/slots:
+    post:
+      tags: [Doctors]
+      summary: Create availability slot
+      description: Doctor-only. Creates a new AVAILABLE slot for the authenticated doctor.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSlotRequest'
+            example:
+              startTime: '2026-07-15T10:00:00.000Z'
+              endTime: '2026-07-15T10:30:00.000Z'
+      responses:
+        '201':
+          description: Slot created
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  id: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                  status: AVAILABLE
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /doctors/me/leaves:
+    get:
+      tags: [Doctors]
+      summary: List leave periods
+      description: Doctor-only. Returns all leave records for the authenticated doctor.
+      responses:
+        '200':
+          description: Leave list
+          content:
+            application/json:
+              example:
+                success: true
+                data: []
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Doctors]
+      summary: Create leave period
+      description: Doctor-only. Blocks booking during leave dates.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLeaveRequest'
+            example:
+              startDate: '2026-08-01'
+              endDate: '2026-08-05'
+              reason: Annual leave
+      responses:
+        '201':
+          description: Leave created
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  id: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /doctors/{id}:
+    get:
+      tags: [Doctors]
+      summary: Get doctor profile by ID
+      description: Public endpoint. Returns doctor profile with specializations and consultation fee.
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Doctor profile
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                  name: Dr. Ananya Patel
+                  consultationFee: 500
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '404':
+          description: Doctor not found
+          content:
+            application/json:
+              example:
+                success: false
+                code: DOCTOR_NOT_FOUND
+                message: Doctor not found
+                details: null
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /doctors/{id}/slots:
+    get:
+      tags: [Doctors]
+      summary: List available slots for a doctor
+      description: Public endpoint. Returns AVAILABLE slots within optional date range. Not cached — must reflect real-time availability.
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: Available slots
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  - id: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                    startTime: '2026-07-15T10:00:00.000Z'
+                    endTime: '2026-07-15T10:30:00.000Z'
+                    status: AVAILABLE
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /appointments:
+    post:
+      tags: [Appointments]
+      summary: Book an appointment
+      description: |
+        Creates appointment with idempotent semantics inside a single DB transaction:
+        optimistic slot locking, audit log, and transactional outbox event.
+        Requires Patient role and `Idempotency-Key` header.
+      security:
+        - bearerAuth: []
+        - idempotencyKey: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAppointmentRequest'
+            example:
+              doctorId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+              slotId: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+              reason: Digestive issues
+      responses:
+        '201':
+          description: Appointment booked
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                  status: CONFIRMED
+                  scheduledStart: '2026-07-15T10:00:00.000Z'
+                  scheduledEnd: '2026-07-15T10:30:00.000Z'
+                  doctor:
+                    id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                    consultationFee: 500
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Not a patient, inactive account, or doctor self-booking
+          content:
+            application/json:
+              examples:
+                notPatient:
+                  value:
+                    success: false
+                    code: FORBIDDEN
+                    message: Only patients can book appointments
+                selfBooking:
+                  value:
+                    success: false
+                    code: DOCTOR_SELF_BOOKING
+                    message: Doctors cannot book their own slots
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Slot conflict or idempotency conflict
+          content:
+            application/json:
+              examples:
+                slotBooked:
+                  value:
+                    success: false
+                    code: SLOT_ALREADY_BOOKED
+                    message: Slot is no longer available
+                idempotencyConflict:
+                  value:
+                    success: false
+                    code: IDEMPOTENCY_CONFLICT
+                    message: Idempotency key reused with different request payload
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /appointments/me:
+    get:
+      tags: [Appointments]
+      summary: List patient appointments
+      description: Cursor-paginated list for authenticated patient. Requires Patient role.
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, CONFIRMED, COMPLETED, CANCELLED, NO_SHOW]
+      responses:
+        '200':
+          description: Paginated appointments
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  items: []
+                  nextCursor: null
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /appointments/doctor/me:
+    get:
+      tags: [Appointments]
+      summary: List doctor appointments
+      description: Cursor-paginated list for authenticated doctor. Requires Doctor role.
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated appointments
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  items: []
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /appointments/{id}:
+    get:
+      tags: [Appointments]
+      summary: Get appointment by ID
+      description: Returns appointment if caller is patient, assigned doctor, or admin.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Appointment details
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                  status: CONFIRMED
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /appointments/{id}/cancel:
+    patch:
+      tags: [Appointments]
+      summary: Cancel an appointment
+      description: Validates status transition, releases slot, writes audit and outbox event. Patient, doctor, or admin may cancel per service rules.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelAppointmentRequest'
+            example:
+              reason: Schedule conflict
+      responses:
+        '200':
+          description: Appointment cancelled
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                  status: CANCELLED
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Cancellation not allowed
+          content:
+            application/json:
+              example:
+                success: false
+                code: CANCELLATION_NOT_ALLOWED
+                message: Appointment cannot be cancelled in current status
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /appointments/{id}/reschedule:
+    patch:
+      tags: [Appointments]
+      summary: Reschedule appointment to new slot
+      description: Reserves new slot with optimistic lock, releases old slot, records history. Patient role required.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RescheduleAppointmentRequest'
+            example:
+              newSlotId: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+              reason: Prefer afternoon slot
+      responses:
+        '200':
+          description: Appointment rescheduled
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                  status: CONFIRMED
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Slot unavailable or reschedule not allowed
+          content:
+            application/json:
+              examples:
+                slotBooked:
+                  value:
+                    success: false
+                    code: SLOT_ALREADY_BOOKED
+                    message: Slot is no longer available
+                notAllowed:
+                  value:
+                    success: false
+                    code: RESCHEDULE_NOT_ALLOWED
+                    message: Appointment cannot be rescheduled
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /consultations/{id}/start:
+    post:
+      tags: [Consultations]
+      summary: Start a consultation
+      description: Transitions consultation from SCHEDULED to IN_PROGRESS. Doctor-only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Consultation started
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                  status: IN_PROGRESS
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Invalid consultation status
+          content:
+            application/json:
+              example:
+                success: false
+                code: INVALID_CONSULTATION_STATUS
+                message: Consultation cannot be started in current status
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /consultations/{id}/complete:
+    post:
+      tags: [Consultations]
+      summary: Complete a consultation
+      description: Transitions to COMPLETED, stores follow-up, emits outbox event. Doctor-only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteConsultationRequest'
+            example:
+              followUpDate: '2026-08-01'
+              followUpNotes: Review in 2 weeks
+      responses:
+        '200':
+          description: Consultation completed
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  status: COMPLETED
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Invalid status transition
+          content:
+            application/json:
+              example:
+                success: false
+                code: INVALID_CONSULTATION_STATUS
+                message: Consultation cannot be completed in current status
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /consultations/history:
+    get:
+      tags: [Consultations]
+      summary: Search consultation history
+      description: Filterable consultation history scoped to caller role.
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: fromDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: toDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: keyword
+          in: query
+          schema:
+            type: string
+        - name: doctorId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Consultation history
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  items: []
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /consultations/me:
+    get:
+      tags: [Consultations]
+      summary: List my consultations
+      description: Returns consultations for authenticated patient or doctor.
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Consultation list
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  items: []
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /consultations/{id}:
+    get:
+      tags: [Consultations]
+      summary: Get consultation by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Consultation details
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                  status: SCHEDULED
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /consultations/{id}/notes:
+    post:
+      tags: [Consultations]
+      summary: Create clinical notes
+      description: Doctor-only. Creates new append-only clinical note version.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClinicalNoteRequest'
+            example:
+              chiefComplaint: Chronic acidity
+              diagnosis: Amlapitta
+      responses:
+        '201':
+          description: Notes created
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  version: 1
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      tags: [Consultations]
+      summary: Update clinical notes
+      description: Doctor-only. Creates new version; previous versions immutable.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClinicalNoteRequest'
+      responses:
+        '200':
+          description: New note version created
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  version: 2
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /consultations/{id}/prescription:
+    post:
+      tags: [Prescriptions]
+      summary: Create prescription for consultation
+      description: Doctor-only. Creates initial prescription with immutable version history.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrescriptionRequest'
+            example:
+              items:
+                - medicineName: Triphala Churna
+                  strength: 500mg
+                  dosage: 1 tsp
+                  frequency: Twice daily
+                  durationDays: 30
+                  foodRelation: AFTER_FOOD
+      responses:
+        '200':
+          description: Prescription created
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                  version: 1
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /prescriptions/{id}:
+    get:
+      tags: [Prescriptions]
+      summary: Get prescription by ID
+      description: Returns current version with items. Access restricted by role.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Prescription details
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                  items: []
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      tags: [Prescriptions]
+      summary: Update prescription
+      description: Doctor-only. Creates new immutable version; history preserved.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrescriptionRequest'
+      responses:
+        '200':
+          description: New version created
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  version: 2
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /prescriptions/{id}/cancel:
+    post:
+      tags: [Prescriptions]
+      summary: Cancel prescription
+      description: Doctor-only. Marks cancelled without deleting version history.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Prescription cancelled
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  status: CANCELLED
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Already cancelled
+          content:
+            application/json:
+              example:
+                success: false
+                code: PRESCRIPTION_CANCELLED
+                message: Prescription is already cancelled
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /prescriptions/history/{consultationId}:
+    get:
+      tags: [Prescriptions]
+      summary: Prescription version history
+      description: Returns all immutable versions for a consultation.
+      parameters:
+        - name: consultationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Version history
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  versions: []
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /payments/initiate:
+    post:
+      tags: [Payments]
+      summary: Initiate payment for appointment
+      description: Creates payment intent via configured provider (MOCK in development). Optional body idempotencyKey.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitiatePaymentRequest'
+            example:
+              appointmentId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+              idempotencyKey: pay-550e8400-e29b-41d4-a716
+      responses:
+        '200':
+          description: Payment initiated
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  paymentId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                  status: PENDING
+                  amount: 500
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /payments/history:
+    get:
+      tags: [Payments]
+      summary: Get payment history
+      description: Paginated payment history for authenticated user.
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Payment history
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  items: []
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /payments/{id}:
+    get:
+      tags: [Payments]
+      summary: Get payment by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Payment details
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                  status: CAPTURED
+                  amount: 500
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /payments/webhook:
+    post:
+      tags: [Payments]
+      summary: Payment provider webhook
+      description: Receives async payment status updates. HMAC-SHA256 verified via `x-webhook-signature` header.
+      security: []
+      parameters:
+        - name: x-webhook-signature
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              event: payment.captured
+              paymentId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+              amount: 500
+      responses:
+        '200':
+          description: Webhook processed
+          content:
+            application/json:
+              example:
+                received: true
+        '401':
+          description: Invalid webhook signature
+          content:
+            application/json:
+              example:
+                success: false
+                code: WEBHOOK_VERIFICATION_FAILED
+                message: Invalid webhook signature
+        '409':
+          description: Duplicate webhook
+          content:
+            application/json:
+              example:
+                success: false
+                code: WEBHOOK_DUPLICATE
+                message: Webhook already processed
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /payments/{id}/refund:
+    post:
+      tags: [Payments]
+      summary: Refund a payment
+      description: Initiates partial or full refund via payment provider.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundPaymentRequest'
+            example:
+              amount: 500
+              reason: Appointment cancelled
+      responses:
+        '200':
+          description: Refund initiated
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  refundId: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                  status: PROCESSING
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: List user notifications
+      description: Returns in-app notifications for authenticated user, newest first.
+      responses:
+        '200':
+          description: Notification list
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  - id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                    title: Appointment Confirmed
+                    body: Your appointment has been booked successfully.
+                    read: false
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /notifications/{id}/read:
+    patch:
+      tags: [Notifications]
+      summary: Mark notification as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Notification marked read
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                  read: true
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Notification not found
+          content:
+            application/json:
+              example:
+                success: false
+                code: NOTIFICATION_NOT_FOUND
+                message: Notification not found
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /admin/dashboard:
+    get:
+      tags: [Admin]
+      summary: Admin dashboard metrics
+      description: Aggregated KPIs cached in Redis (60s TTL). Requires Admin or Super Admin role.
+      responses:
+        '200':
+          description: Dashboard data
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  totalAppointments: 1250
+                  todayBookings: 42
+                  activeDoctors: 18
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /admin/analytics:
+    get:
+      tags: [Admin]
+      summary: Analytics reporting
+      description: Time-series appointment and revenue metrics by period.
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [daily, weekly, monthly, yearly, custom]
+            default: daily
+        - name: fromDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: toDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Analytics data
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  period: daily
+                  appointments: []
+                  revenue: []
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /admin/audit:
+    get:
+      tags: [Admin]
+      summary: Immutable audit history
+      description: Filterable audit log for compliance and incident investigation.
+      parameters:
+        - name: userId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: resourceType
+          in: query
+          schema:
+            type: string
+        - name: fromDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: toDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Audit entries
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  items:
+                    - action: APPOINTMENT_BOOKED
+                      userId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /admin/search:
+    get:
+      tags: [Admin]
+      summary: Global admin search
+      description: Search patients, doctors, and appointments by keyword.
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: types
+          in: query
+          schema:
+            type: string
+          description: Comma-separated types (patient, doctor, appointment)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  results: []
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /admin/system-health:
+    get:
+      tags: [Admin]
+      summary: System health and queue metrics
+      description: Database connectivity and dead-letter queue depth for ops dashboards.
+      responses:
+        '200':
+          description: System health snapshot
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  database: healthy
+                  queues:
+                    deadLetterCount: 0
+                    pendingOutbox: 2
+                  timestamp: '2026-07-10T12:00:00.000Z'
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /health:
+    get:
+      tags: [Health]
+      summary: Full system health check
+      description: Checks database, Redis, queue, memory, and disk. Public endpoint.
+      security: []
+      responses:
+        '200':
+          description: System healthy or degraded
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  status: ok
+                  info:
+                    database:
+                      status: up
+                    redis:
+                      status: up
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '503':
+          description: System unhealthy
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  status: error
+                  error:
+                    database:
+                      status: down
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /health/live:
+    get:
+      tags: [Health]
+      summary: Liveness probe
+      description: Returns 200 if process is responsive. Used by Kubernetes liveness probes.
+      security: []
+      responses:
+        '200':
+          description: Process alive
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  status: ok
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+
+  /health/ready:
+    get:
+      tags: [Health]
+      summary: Readiness probe
+      description: Returns 200 when database, Redis, and queue are reachable. Used by Kubernetes readiness probes.
+      security: []
+      responses:
+        '200':
+          description: Ready to accept traffic
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  status: ok
+                  info:
+                    database:
+                      status: up
+                    redis:
+                      status: up
+                    queue:
+                      status: up
+                requestId: 550e8400-e29b-41d4-a716-446655440000
+                timestamp: '2026-07-10T12:00:00.000Z'
+        '503':
+          description: Not ready
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  status: error
+
+  /metrics:
+    get:
+      tags: [Metrics]
+      summary: Prometheus metrics
+      description: |
+        Prometheus text exposition format. Includes HTTP, DB, Redis, cache, and queue metrics.
+        Public endpoint for Prometheus scraper.
+      security: []
+      responses:
+        '200':
+          description: Prometheus metrics
+          content:
+            text/plain:
+              example: |
+                # HELP http_requests_total Total HTTP requests
+                # TYPE http_requests_total counter
+                http_requests_total{method="GET",route="/health/ready",status_code="200"} 42

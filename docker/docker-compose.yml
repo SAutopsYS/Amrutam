@@ -1,0 +1,121 @@
+version: '3.9'
+
+networks:
+  amrutam-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    networks: [amrutam-net]
+    environment:
+      POSTGRES_USER: amrutam
+      POSTGRES_PASSWORD: amrutam_secret
+      POSTGRES_DB: amrutam
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U amrutam']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    networks: [amrutam-net]
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    networks: [amrutam-net]
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      API_PREFIX: api/v1
+      DATABASE_URL: postgresql://amrutam:amrutam_secret@postgres:5432/amrutam?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      JWT_ACCESS_SECRET: dev-access-secret-min-32-characters-long!!
+      JWT_REFRESH_SECRET: dev-refresh-secret-min-32-characters-long!
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      BCRYPT_ROUNDS: 12
+      PASSWORD_HISTORY_COUNT: 5
+      THROTTLE_TTL: 60000
+      THROTTLE_LIMIT: 200
+      CORS_ORIGINS: http://localhost:3000,http://localhost:4200
+      SWAGGER_ENABLED: 'true'
+      MFA_ENABLED: 'false'
+      BOOKING_CANCELLATION_HOURS: 24
+      PAYMENT_WEBHOOK_SECRET: dev-webhook-secret-min-32-characters-long
+      SERVICE_NAME: amrutam-backend
+      APP_VERSION: 1.0.0
+      OTEL_ENABLED: 'true'
+      METRICS_ENABLED: 'true'
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3000/api/v1/health/live']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    networks: [amrutam-net]
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    networks: [amrutam-net]
+    ports:
+      - '3001:3000'
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    depends_on:
+      - prometheus
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.61
+    networks: [amrutam-net]
+    ports:
+      - '16686:16686'
+      - '4318:4318'
+    environment:
+      COLLECTOR_OTLP_ENABLED: 'true'

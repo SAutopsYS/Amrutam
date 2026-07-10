@@ -1,0 +1,16 @@
+# Local development overrides — hot reload without rebuilding the API image.
+# Usage: docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up
+
+services:
+  api:
+    build:
+      target: builder
+    command: sh -c "npx prisma migrate deploy && npm run start:dev"
+    volumes:
+      - ../src:/app/src:ro
+      - ../prisma:/app/prisma:ro
+    environment:
+      NODE_ENV: development
+    ports:
+      - '3000:3000'
+      - '9229:9229'
