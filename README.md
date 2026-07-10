@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Amrutam Telemedicine Backend
 
 [![CI](https://github.com/amrutam/amrutam-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/amrutam/amrutam-backend/actions/workflows/ci.yml)
@@ -611,3 +612,6 @@ Rolling updates: `maxUnavailable: 0`, readiness gate on DB + Redis + queue, 60s 
 ## License
 
 UNLICENSED — portfolio / evaluation project.
+=======
+# Amrutam
+>>>>>>> 9bf39f1f44bde87e2f9abf745b49b4fe8fdbf85c
