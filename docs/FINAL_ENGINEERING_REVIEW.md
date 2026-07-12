@@ -1,5 +1,7 @@
 # Final Engineering Review
 
+> ⚠️ **Historical snapshot.** Prefer [FINAL_SUBMISSION_REVIEW.md](./FINAL_SUBMISSION_REVIEW.md).
+
 Principal Staff Engineer final review before repository release.
 
 ## Scores

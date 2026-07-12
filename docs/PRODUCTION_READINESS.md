@@ -1,5 +1,7 @@
 # Production Readiness Assessment
 
+> ⚠️ **Partially outdated.** Auth endpoints and MFA are implemented. See [FINAL_SUBMISSION_REVIEW.md](./FINAL_SUBMISSION_REVIEW.md).
+
 Application goes live tomorrow — comprehensive readiness review.
 
 ## Go Live Checklist

@@ -36,10 +36,12 @@ model User {
   emailVerified   Boolean    @default(false) @map("email_verified")
   emailVerifiedAt DateTime?  @map("email_verified_at")
   lastLoginAt     DateTime?  @map("last_login_at")
-  mfaEnabled      Boolean    @default(false) @map("mfa_enabled")
-  mfaSecret       String?    @map("mfa_secret")
-  createdAt       DateTime   @default(now()) @map("created_at")
-  updatedAt       DateTime   @updatedAt @map("updated_at")
+  mfaEnabled       Boolean   @default(false) @map("mfa_enabled")
+  mfaSecret        String?   @map("mfa_secret") // AES-256-GCM encrypted TOTP secret
+  mfaPendingSecret String?   @map("mfa_pending_secret") // encrypted secret during setup
+  mfaRecoveryCodes Json?     @map("mfa_recovery_codes") // SHA-256 hashes of backup codes
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
   profile         Profile?
   doctor          Doctor?

@@ -18,6 +18,7 @@
     "test:integration": "jest --config ./test/jest-integration.json",
     "audit:deps": "npm audit --audit-level=high",
     "docker:dev": "docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up --build",
+    "docker:up": "docker compose -f docker/docker-compose.yml up -d --build",
     "setup": "node -e \"require('child_process').execSync(process.platform==='win32'?'powershell -File scripts/setup.ps1':'bash scripts/setup.sh',{stdio:'inherit'})\"",
     "ci:local": "node -e \"require('child_process').execSync(process.platform==='win32'?'npm run lint && npm test -- --coverage && npm run test:integration && npm run build':'bash scripts/ci-local.sh',{stdio:'inherit',shell:true})\"",
     "docker:down": "docker compose -f docker/docker-compose.yml down",
@@ -31,6 +32,10 @@
     "loadtest:smoke": "k6 run loadtests/smoke.js",
     "loadtest:normal": "k6 run loadtests/scenarios/normal.js",
     "loadtest:peak": "k6 run loadtests/scenarios/peak.js",
+    "loadtest:stress": "k6 run loadtests/scenarios/stress.js",
+    "loadtest:spike": "k6 run loadtests/scenarios/spike.js",
+    "loadtest:soak": "k6 run loadtests/scenarios/soak.js",
+    "loadtest:benchmark": "k6 run loadtests/scenarios/benchmark.js",
     "prepare": "husky install"
   },
   "prisma": {
@@ -62,9 +67,11 @@
     "helmet": "^8.0.0",
     "ioredis": "^5.4.2",
     "nest-winston": "^1.10.0",
+    "otplib": "^13.4.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "prom-client": "^15.1.3",
+    "qrcode": "^1.5.4",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "uuid": "^11.0.3",
@@ -82,6 +89,7 @@
     "@types/jest": "^29.5.14",
     "@types/node": "^22.10.2",
     "@types/passport-jwt": "^4.0.1",
+    "@types/qrcode": "^1.5.6",
     "@types/supertest": "^6.0.2",
     "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^8.18.1",
@@ -115,7 +123,10 @@
     ],
     "rootDir": ".",
     "testRegex": "test/unit/.*\\.spec\\.ts$",
-    "testPathIgnorePatterns": ["/node_modules/", "\\.integration\\.spec\\.ts$"],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "\\.integration\\.spec\\.ts$"
+    ],
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },

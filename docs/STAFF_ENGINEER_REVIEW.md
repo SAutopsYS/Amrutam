@@ -1,5 +1,7 @@
 # Staff Engineer Review (L6 Backend)
 
+> ⚠️ **Partially outdated on MFA/Terraform.** Prefer [FINAL_SUBMISSION_REVIEW.md](./FINAL_SUBMISSION_REVIEW.md) for current score.
+
 FAANG Staff Engineer evaluation for L6 Backend Engineer candidacy.
 
 ---

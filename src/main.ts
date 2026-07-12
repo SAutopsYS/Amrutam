@@ -65,6 +65,8 @@ async function bootstrap(): Promise<void> {
           '## Authentication\n' +
           'Protected endpoints require a JWT bearer token:\n' +
           '```\nAuthorization: Bearer <access_token>\n```\n\n' +
+          'Login via `POST /auth/login`. If MFA is enrolled, the response is\n' +
+          '`{ mfaRequired: true, mfaToken }` — complete with `POST /auth/mfa/verify`.\n\n' +
           'Generate development tokens after seeding:\n' +
           '```bash\nnpm run token:patient\nnpm run token:doctor\n```\n\n' +
           'In Swagger UI, click **Authorize** and enter `Bearer <token>`.\n\n' +
@@ -74,7 +76,7 @@ async function bootstrap(): Promise<void> {
           'All responses use a standard envelope: `{ success, data, meta, requestId, timestamp }`.\n' +
           'Errors return `{ success: false, code, message, details, requestId, timestamp }`.\n\n' +
           '## Canonical Specification\n' +
-          'Full OpenAPI 3.1 YAML with request/response examples: `docs/openapi.yaml` in the repository root.',
+          'Full OpenAPI 3.1 YAML with request/response examples: `docs/openapi.yaml`.',
       )
       .setVersion(configService.get<string>('telemetry.serviceVersion') ?? '1.0.0')
       .setExternalDoc('OpenAPI 3.1 Specification (YAML)', '/openapi.yaml')

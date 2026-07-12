@@ -1,118 +1,268 @@
-# Demo Guide — 5-Minute Presentation
+# Demo Guide — 5-Minute Presentation Screenplay
 
-Structured script for hiring panels, architecture reviews, or technical interviews.  
-**Total time: 5 minutes (300 seconds).**
+Structured **screenplay** for hiring panels.  
+**Total time: 5 minutes (300 seconds).**  
+Canonical companion: [FINAL_SUBMISSION_REVIEW.md](./FINAL_SUBMISSION_REVIEW.md) (Steps 4–6).
 
 ---
 
-## Prep (Before You Present)
+## Prep (Before Recording)
 
 ```bash
-npm run setup && npm run prisma:seed && npm run start:dev
+cp .env.example .env
+npm install
+npm run docker:up          # Postgres, Redis, API, Prometheus, Grafana, Jaeger
+# OR local: npm run setup && npm run prisma:migrate && npm run prisma:seed && npm run start:dev
+npm run prisma:deploy && npm run prisma:seed   # if API container needs seed
+npm test && npm run build
 ```
 
-| URL | Purpose |
-|-----|---------|
-| http://localhost:3000/docs | Swagger |
-| http://localhost:3000/api/v1/health/ready | Readiness |
-| http://localhost:9090 | Prometheus |
-| http://localhost:16686 | Jaeger |
+| Tab / URL | Purpose |
+|-----------|---------|
+| Browser A | http://localhost:3000/docs — Swagger |
+| Browser B | http://localhost:16686 — Jaeger |
+| Browser C | http://localhost:9090 — Prometheus |
+| Browser D | http://localhost:3001 — Grafana (admin/admin) |
+| Browser E | GitHub repo → Actions → CI |
+| IDE | `docs/ARCHITECTURE.md`, `create-booking.service.ts` |
+| Terminal 1 | API logs / curl |
+| Terminal 2 | Optional k6 |
+
+Seed users have **MFA off** — login returns tokens directly. MFA demo is optional (section 3b).
 
 ---
 
-## 0–30 sec — Introduction
+## Screenplay
 
-**Say:**
+### 00:00–00:20 — Opening
 
-> "I'm presenting the Amrutam Telemedicine Backend — a NestJS modular monolith for an Ayurveda telemedicine platform. It handles auth, doctor discovery, booking, clinical workflows, payments, and admin analytics.
->
-> The design constraint that drove every decision is **correctness under concurrency**: two patients cannot book the same slot, and a network retry must not create duplicate bookings."
+| # | Cue |
+|---|-----|
+| **Time** | 00:00–00:20 |
+| **Say** | "This is the Amrutam Telemedicine Backend — a NestJS modular monolith for Ayurveda telemedicine. The design constraint that drove every decision is **correctness under concurrency**: two patients cannot book the same slot, and a network retry must not create duplicate bookings." |
+| **File** | `README.md` |
+| **Endpoint** | — |
+| **Browser** | README on GitHub or local |
+| **Terminal** | — |
+| **Swagger** | — |
+| **Code** | — |
+| **Diagram** | README Mermaid overview |
+| **Docs** | README §1–3 |
+| **Logs / Metrics** | — |
+| **GitHub / CI** | Repository home |
+| **Folder** | Repo root |
 
-**Show:** README architecture diagram.
-
----
-
-## 30–90 sec — Architecture
-
-**Say:**
-
-> "It's a modular monolith — not microservices — because booking, audit, and outbox events need ACID transactions in one boundary. Each module follows Clean Architecture: thin controllers, application services for use cases, infrastructure repositories for Prisma, and domain enums for state machines.
->
-> Side effects like notifications go through a transactional outbox — written in the same DB transaction as the booking, then processed asynchronously by a BullMQ worker."
-
-**Show:**
-
-1. [diagrams.md — High-Level Architecture](./diagrams.md#high-level-architecture)
-2. `src/modules/bookings/` folder structure
-3. `src/app.module.ts` — global guards and interceptors
-
-**Key line:** "Module boundaries are extraction points for future microservices. The outbox events become the inter-service contract."
+**Screen:** README hero + badges + reviewer callout.
 
 ---
 
-## 90–180 sec — Booking (The Core)
+### 00:20–00:50 — Architecture
 
-**Say:**
+| # | Cue |
+|---|-----|
+| **Time** | 00:20–00:50 |
+| **Say** | "Modular monolith — not microservices — because booking, audit, and outbox need ACID in one boundary. Clean Architecture per module: controllers, application services, Prisma repositories, domain enums. Side effects go through a transactional outbox → BullMQ." |
+| **File** | `docs/ARCHITECTURE.md` |
+| **Endpoint** | — |
+| **Browser** | Architecture doc |
+| **Terminal** | — |
+| **Swagger** | — |
+| **Code** | `src/app.module.ts` (flash) |
+| **Diagram** | `docs/diagrams.md` — High-Level Architecture |
+| **Docs** | ARCHITECTURE.md · ADR-001 |
+| **Logs / Metrics** | — |
+| **GitHub / CI** | — |
+| **Folder** | `src/modules/` |
 
-> "Booking is the highest-contention path. Three mechanisms protect it:
->
-> 1. **Idempotency keys** — `POST /appointments` requires an `Idempotency-Key` header. Same key and payload returns the cached response. Different payload returns 409.
->
-> 2. **Optimistic locking** — `SlotRepository` updates the slot only if `version` matches and status is AVAILABLE. Zero rows updated means someone else got it — we return 409, not 500.
->
-> 3. **Transactional outbox** — notification events are written to `outbox_events` in the same transaction. A poller enqueues BullMQ jobs every 5 seconds."
+**Highlight:** PostgreSQL · Redis · BullMQ · Prisma · Outbox.
 
-**Show:**
+---
 
-1. [diagrams.md — Booking Sequence](./diagrams.md#booking-sequence-diagram)
-2. `create-booking.service.ts` — scroll to `$transaction` block
-3. Swagger → `POST /appointments` → highlight `Idempotency-Key`
+### 00:50–01:20 — Auth & MFA
 
-**Demo (optional):**
+| # | Cue |
+|---|-----|
+| **Time** | 00:50–01:20 |
+| **Say** | "Auth is JWT with refresh rotation and RBAC. MFA is production TOTP — secrets encrypted AES-256-GCM. Login either returns tokens or an MFA challenge token." |
+| **File** | `src/modules/auth/presentation/auth.controller.ts` |
+| **Endpoint** | `POST /api/v1/auth/login` |
+| **Browser** | Swagger → Auth → Login |
+| **Terminal** | Optional curl login |
+| **Swagger** | http://localhost:3000/docs → Auth |
+| **Code** | `mfa.service.ts` (1 scroll) |
+| **Diagram** | README auth Mermaid (§14) |
+| **Docs** | SECURITY.md MFA section |
+| **Logs / Metrics** | — |
+| **GitHub / CI** | — |
+| **Folder** | `src/modules/auth/` |
+
+**Demo curl:**
 
 ```bash
-# Login
-TOKEN=$(curl -s -X POST http://localhost:3000/api/v1/auth/login \
+curl -s -X POST http://localhost:3000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"patient@amrutam.test","password":"Password123!"}' \
-  | jq -r '.data.accessToken')
-
-# Search doctor + slots
-curl "http://localhost:3000/api/v1/doctors?keyword=ayurveda"
+  -d '{"email":"patient@amrutam.test","password":"Password123!"}'
 ```
+
+Authorize Swagger with `Bearer <accessToken>`.
 
 ---
 
-## 180–240 sec — Observability
+### 01:20–02:20 — Booking (core)
 
-**Say:**
+| # | Cue |
+|---|-----|
+| **Time** | 01:20–02:20 |
+| **Say** | "Three protections: Idempotency-Key caches the response; optimistic locking on slot version returns 409 on conflict; outbox events write in the same transaction as the booking." |
+| **File** | `src/modules/bookings/application/services/create-booking.service.ts` |
+| **Endpoint** | `POST /api/v1/appointments` + `Idempotency-Key` |
+| **Browser** | Swagger → Appointments |
+| **Terminal** | curl book (optional) |
+| **Swagger** | Try it out with Idempotency-Key |
+| **Code** | `$transaction` + `SlotRepository` |
+| **Diagram** | `docs/diagrams.md` — Booking Sequence |
+| **Docs** | ADR on idempotency / outbox |
+| **Logs / Metrics** | — |
+| **GitHub / CI** | — |
+| **Folder** | `src/modules/bookings/` |
 
-> "Every request gets a correlation ID via `X-Correlation-Id`, propagated through logs, audit entries, outbox events, and BullMQ jobs. Structured JSON logs mask PHI before emission.
->
-> Prometheus metrics are at `/api/v1/metrics` — HTTP latency, DB query time, cache hit ratio, queue depth. OpenTelemetry traces export to Jaeger. Kubernetes uses separate liveness and readiness probes."
+Also flash: `slot.repository.ts` (version WHERE), `outbox.service.ts`.
 
-**Show:**
+---
+
+### 02:20–02:50 — Clinical + Prescription
+
+| # | Cue |
+|---|-----|
+| **Time** | 02:20–02:50 |
+| **Say** | "Consultations are a state machine. Prescriptions are append-only versioned — updates never overwrite history." |
+| **File** | `src/modules/consultations/` · `prescriptions/` |
+| **Endpoint** | `POST /consultations/:id/start` · `PATCH /prescriptions/:id` |
+| **Browser** | Swagger tags Consultations / Prescriptions |
+| **Terminal** | — |
+| **Swagger** | Those tags |
+| **Code** | Prescription version repository (flash) |
+| **Diagram** | diagrams.md clinical flow (if present) |
+| **Docs** | ARCHITECTURE clinical section |
+| **Logs / Metrics** | — |
+| **GitHub / CI** | — |
+| **Folder** | `src/modules/consultations/` |
+
+---
+
+### 02:50–03:20 — Observability
+
+| # | Cue |
+|---|-----|
+| **Time** | 02:50–03:20 |
+| **Say** | "Every request gets a correlation ID. Metrics at /metrics. Traces to Jaeger. Separate liveness and readiness for Kubernetes." |
+| **File** | `docs/observability.md` |
+| **Endpoint** | `GET /api/v1/metrics` · `GET /api/v1/health/ready` |
+| **Browser** | Prometheus 9090 · Jaeger 16686 |
+| **Terminal** | `curl -s .../metrics \| head` |
+| **Swagger** | Health tag |
+| **Code** | `metrics.service.ts` (optional) |
+| **Diagram** | — |
+| **Docs** | observability.md |
+| **Logs** | Winston JSON with masked PHI |
+| **Metrics** | Prometheus scrape |
+| **GitHub / CI** | — |
+| **Folder** | `src/metrics/` · `src/telemetry/` |
 
 ```bash
+curl -s http://localhost:3000/api/v1/health/ready
 curl -s http://localhost:3000/api/v1/metrics | head -20
-curl http://localhost:3000/api/v1/health/ready
 ```
-
-Open Jaeger UI if OTEL enabled.
 
 ---
 
-## 240–300 sec — Security & Close
+### 03:20–03:50 — Infra (Docker / Terraform / K8s)
 
-**Say:**
+| # | Cue |
+|---|-----|
+| **Time** | 03:20–03:50 |
+| **Say** | "Multi-stage Docker, Compose with Postgres Redis Prometheus Grafana Jaeger. Terraform modules for VPC RDS Redis ALB ECS secrets monitoring. Kubernetes with HPA PDB NetworkPolicy." |
+| **File** | `docker/Dockerfile` · `infra/terraform/main.tf` · `infra/k8s/deployment.yaml` |
+| **Endpoint** | — |
+| **Browser** | Folder tree in IDE |
+| **Terminal** | Optional `terraform validate` |
+| **Swagger** | — |
+| **Code** | — |
+| **Diagram** | — |
+| **Docs** | `infra/terraform/README.md` |
+| **Logs / Metrics** | Grafana 3001 briefly |
+| **GitHub / CI** | — |
+| **Folder** | `docker/` · `infra/` |
 
-> "Security is defense in depth: global JWT guard with role decorators, service-level ownership checks, bcrypt passwords, refresh token rotation, immutable audit logs, and Helmet headers.
->
-> The repo includes ADRs explaining every major decision, k6 load tests, Kubernetes manifests with HPA and NetworkPolicy, and a full CI pipeline with coverage gates.
->
-> Happy to deep-dive into any area — booking concurrency, outbox failure modes, or the scaling plan to 1M users."
+---
 
-**Show:** [SECURITY.md](../SECURITY.md) threat model table · [docs/adr/](./adr/) index
+### 03:50–04:20 — CI, Tests, Security
+
+| # | Cue |
+|---|-----|
+| **Time** | 03:50–04:20 |
+| **Say** | "CI runs lint, unit, integration with Postgres/Redis, build, docker, dependency audit. Unit tests cover booking locks, MFA crypto, guards. Security docs include threat model and checklist. MFA and audit logs close the loop." |
+| **File** | `.github/workflows/ci.yml` · `SECURITY.md` |
+| **Endpoint** | `GET /admin/audit` (mention) |
+| **Browser** | GitHub Actions green run |
+| **Terminal** | `npm test` result |
+| **Swagger** | Admin → audit (optional) |
+| **Code** | `test/unit/create-booking.service.spec.ts` |
+| **Diagram** | — |
+| **Docs** | threat-model.md · security-checklist.md |
+| **Logs / Metrics** | — |
+| **GitHub / CI** | Actions tab |
+| **Folder** | `test/` · `docs/security/` |
+
+---
+
+### 04:20–04:50 — Performance + Docs pack
+
+| # | Cue |
+|---|-----|
+| **Time** | 04:20–04:50 |
+| **Say** | "k6 scenarios include smoke normal peak stress spike soak and a dedicated benchmark. Report lives under docs/performance. Reviewer guide and 100 interview Q&A are in the repo." |
+| **File** | `docs/performance/BENCHMARK_REPORT.md` · `docs/REVIEWER_GUIDE.md` |
+| **Endpoint** | — |
+| **Browser** | Benchmark report |
+| **Terminal** | Mention `npm run loadtest:benchmark` |
+| **Swagger** | — |
+| **Code** | `loadtests/scenarios/benchmark.js` |
+| **Diagram** | — |
+| **Docs** | BENCHMARK_REPORT · INTERVIEW_PREP |
+| **Logs / Metrics** | — |
+| **GitHub / CI** | — |
+| **Folder** | `loadtests/` · `docs/` |
+
+---
+
+### 04:50–05:00 — Close
+
+| # | Cue |
+|---|-----|
+| **Time** | 04:50–05:00 |
+| **Say** | "Happy to deep-dive booking concurrency, outbox failure modes, MFA crypto, or the scaling plan to 1M users. Start with REVIEWER_GUIDE — twenty minutes to the core paths." |
+| **File** | `docs/REVIEWER_GUIDE.md` |
+| **Endpoint** | — |
+| **Browser** | REVIEWER_GUIDE |
+| **Terminal** | — |
+| **Swagger** | — |
+| **Code** | — |
+| **Diagram** | — |
+| **Docs** | REVIEWER_GUIDE · FINAL_SUBMISSION_REVIEW |
+| **Logs / Metrics** | — |
+| **GitHub / CI** | Star the tree one last time |
+| **Folder** | Repo root |
+
+---
+
+## Optional 3b — MFA live (if time / MFA_ENABLED=true)
+
+1. Login as doctor → Authorize  
+2. `POST /auth/mfa/enable` → show QR / otpauth URL  
+3. `POST /auth/mfa/verify-setup` with TOTP  
+4. Logout → login → show `mfaRequired` + `mfaToken`  
+5. `POST /auth/mfa/verify` → tokens  
 
 ---
 
@@ -120,15 +270,16 @@ Open Jaeger UI if OTEL enabled.
 
 | If this fails | Do this |
 |---------------|---------|
-| Booking returns 409 | Explain optimistic locking; show unit test |
+| Booking 409 | Explain optimistic locking; show unit test |
 | Jaeger empty | Show JSON logs with correlationId |
-| No slots available | Show seed data in `prisma/seed.ts` |
-| Short on time | Skip observability; focus on booking + outbox |
+| No slots | Show `prisma/seed.ts` |
+| Short on time | Skip clinical + Grafana; keep booking + CI |
 
 ---
 
 ## After the Demo
 
-Point reviewers to:
-- [REVIEWER_GUIDE.md](./REVIEWER_GUIDE.md) — 20-min self-guided tour
-- [INTERVIEW_PREP.md](./INTERVIEW_PREP.md) — 100 repo-specific Q&A
+- [REVIEWER_GUIDE.md](./REVIEWER_GUIDE.md)  
+- [INTERVIEW_PREP.md](./INTERVIEW_PREP.md)  
+- [FINAL_SUBMISSION_REVIEW.md](./FINAL_SUBMISSION_REVIEW.md)  
+- [SUBMISSION_AUDIT.md](./SUBMISSION_AUDIT.md)

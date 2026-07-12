@@ -1,5 +1,7 @@
 # Architecture Audit
 
+> ⚠️ **Historical snapshot.** Prefer [ARCHITECTURE.md](./ARCHITECTURE.md) and [FINAL_SUBMISSION_REVIEW.md](./FINAL_SUBMISSION_REVIEW.md).
+
 Independent Software Architecture Review Board assessment.
 
 ## Evaluation Summary

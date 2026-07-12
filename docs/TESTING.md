@@ -163,7 +163,7 @@ npm run prisma:seed    # Test users for integration tests
 ### Unit tests only (fast, no Docker)
 
 ```bash
-npm test                 # 43 tests across 15 suites
+npm test                 # 51 tests across 17 suites
 npm run test:watch     # Watch mode
 npm run test:cov       # With coverage report in coverage/
 ```

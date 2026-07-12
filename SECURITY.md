@@ -2,7 +2,7 @@
 
 Security architecture, controls, and operational practices for the Amrutam Telemedicine Backend.
 
-**Related:** [ADR-007 JWT](./docs/adr/007-jwt-authentication.md) · [ADR-008 RBAC](./docs/adr/008-rbac.md) · [OBSERVABILITY.md](./docs/OBSERVABILITY.md) · [TESTING.md](./docs/TESTING.md)
+**Related:** [ADR-007 JWT](./docs/adr/007-jwt-authentication.md) · [ADR-008 RBAC](./docs/adr/008-rbac.md) · [observability.md](./docs/observability.md) · [TESTING.md](./docs/TESTING.md)
 
 ---
 
@@ -14,7 +14,7 @@ The Amrutam API processes **Protected Health Information (PHI)**, authentication
 |-------|----------|
 | Network | TLS at ingress, Kubernetes NetworkPolicy, private subnets for data tier |
 | Application | Helmet, CORS allowlist, rate limiting, DTO validation |
-| Authentication | JWT bearer tokens, bcrypt passwords, refresh token rotation |
+| Authentication | JWT bearer tokens, bcrypt passwords, refresh rotation, **TOTP MFA** |
 | Authorization | RBAC guards + service-level resource ownership |
 | Data | PHI log masking, immutable audit trail, append-only clinical records |
 | Operations | `npm audit` in CI, secret management, env validation at boot |
@@ -58,6 +58,7 @@ flowchart TB
 
 | Threat | Category | Mitigation in this codebase |
 |--------|----------|----------------------------|
+| Stolen password | Spoofing | TOTP MFA challenge after password login |
 | Forged JWT | Spoofing | HS256 with 32+ char secrets; `JwtStrategy` reloads user; expiry enforced |
 | Brute-force login | Spoofing | Rate limiting; uniform error messages; `FAILED_LOGIN` audit |
 | Patient reads another's records | Elevation of privilege | `RolesGuard` + service ownership checks on every resource |
@@ -74,7 +75,7 @@ flowchart TB
 | Risk | Likelihood | Impact | Mitigation path |
 |------|------------|--------|-----------------|
 | Stolen refresh token (XSS on client) | Medium | High | Short access TTL (15m); refresh rotation; future httpOnly cookie option |
-| Compromised admin account | Low | Critical | Audit logging; least privilege; MFA flag in schema (flow pending) |
+| Compromised admin account | Low | Critical | Audit logging; least privilege; **TOTP MFA** |
 | Insider data exfiltration | Low | High | Audit trail; no bulk export API for patients |
 | Zero-day in npm dependency | Medium | Variable | CI `npm audit`; pinned lockfile; Dependabot recommended |
 | Redis cache poisoning | Low | Medium | Redis on private network; no user-controlled cache keys |
@@ -124,6 +125,8 @@ flowchart TB
 | **At rest (database)** | Managed PostgreSQL encryption | AWS RDS / Cloud SQL default or customer-managed keys |
 | **At rest (Redis)** | Provider encryption at rest | ElastiCache / Memorystore when managed |
 | **Passwords** | bcrypt | Configurable via `BCRYPT_ROUNDS` (default 12) |
+| **TOTP secrets (at rest)** | AES-256-GCM | `MFA_ENCRYPTION_KEY`; see `mfa-crypto.util.ts` |
+| **MFA recovery codes** | SHA-256 hashes | Shown once at enrollment |
 | **Refresh tokens (stored)** | SHA-256 hash | Plain token only on client; `auth.service.ts` `hashToken()` |
 | **JWT signing** | HS256 | Separate access and refresh secrets |
 | **Webhooks** | HMAC-SHA256 | `PAYMENT_WEBHOOK_SECRET`; header `x-webhook-signature` |
@@ -139,7 +142,18 @@ flowchart TB
 | Token | Lifetime | Secret | Storage |
 |-------|----------|--------|---------|
 | Access token | 15m (`JWT_ACCESS_EXPIRES_IN`) | `JWT_ACCESS_SECRET` | Client memory |
-| Refresh token | 7d (`JWT_REFRESH_EXPIRES_IN`) | `JWT_REFRESH_SECRET` | Client secure storage; DB stores SHA-256 hash |
+| Refresh token | 7d (`JWT_REFRESH_EXPIRES_IN`) | `JWT_REFRESH_SECRET` | Client; DB stores SHA-256 hash |
+| MFA challenge | 5m | `JWT_ACCESS_SECRET` + `purpose: mfa` | Ephemeral after password login |
+
+### MFA (TOTP)
+
+When `MFA_ENABLED=true` and the user completed enrollment (`mfa.service.ts`):
+
+1. `POST /auth/mfa/enable` — encrypted TOTP secret + QR + recovery codes
+2. `POST /auth/mfa/verify-setup` — confirm OTP → `mfaEnabled=true`
+3. `POST /auth/login` — may return `{ mfaRequired, mfaToken }`
+4. `POST /auth/mfa/verify` — OTP or recovery code → access/refresh tokens
+5. `POST /auth/mfa/disable` — password + OTP/recovery
 
 ### Flow
 
@@ -150,23 +164,21 @@ sequenceDiagram
     participant DB as PostgreSQL
 
     C->>A: POST /auth/login
-    A->>DB: bcrypt verify + create session
-    A->>DB: INSERT refresh_token (tokenHash)
-    A-->>C: accessToken + refreshToken
-
-    C->>A: API call (Bearer accessToken)
-    Note over A: JwtStrategy validates + reloads ACTIVE user
-
-    C->>A: POST /auth/refresh
-    A->>DB: REVOKE old refresh token
-    A-->>C: New token pair (rotation)
+    A->>DB: bcrypt verify
+    alt MFA enabled
+        A-->>C: mfaRequired + mfaToken
+        C->>A: POST /auth/mfa/verify + OTP
+        A-->>C: accessToken + refreshToken
+    else MFA off
+        A-->>C: accessToken + refreshToken
+    end
 ```
 
 ### Security properties
 
-- **Global guard:** `JwtAuthGuard` on all routes; `@Public()` opt-out for login, register, doctor search, health, webhooks
+- **Global guard:** `JwtAuthGuard`; `@Public()` for login, register, MFA challenge, health, webhooks
 - **Live revocation:** `JwtStrategy.validate()` queries DB — deactivated users rejected immediately
-- **No sensitive claims in JWT:** Payload contains `sub`, `email`, `roles` only
+- **No sensitive claims in JWT:** Payload contains `sub`, `email`, `roles` (MFA challenge adds `purpose`)
 - **Rotation:** Each refresh revokes the previous refresh token before issuing new pair
 
 ### Trade-off
@@ -247,7 +259,7 @@ Exceeded limit returns **429** with standard error envelope.
 
 ### Boot-time validation
 
-`src/config/env.validation.ts` (Joi):
+`src/config/env.validation.ts` (class-validator):
 
 - Rejects JWT secrets shorter than 32 characters in production
 - Rejects known default secret strings when `NODE_ENV=production`
@@ -357,8 +369,7 @@ Steps: Detect → Contain (rotate secrets) → Investigate (audit + Jaeger) → 
 
 | Improvement | Priority | Notes |
 |-------------|----------|-------|
-| MFA TOTP enrollment | High | `mfa_enabled` / `mfa_secret` on User model; flow not implemented |
-| Per-route rate limits on auth | High | Brute-force protection on `/auth/login` |
+| Per-route rate limits on auth | High | Brute-force protection on `/auth/login` and `/auth/mfa/verify` |
 | Redis auth cache for JWT | Medium | Reduce DB load; 30s TTL with invalidation on status change |
 | Field-level PHI encryption | Medium | For regulatory environments requiring column encryption |
 | OAuth2 / social login | Low | Out of current assignment scope |

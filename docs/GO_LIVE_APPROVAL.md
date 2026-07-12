@@ -1,5 +1,7 @@
 # Go-Live Approval
 
+> ⚠️ **Superseded for MFA/Terraform status.** Current go/no-go: [ASSIGNMENT_COMPLIANCE.md](./ASSIGNMENT_COMPLIANCE.md) · [FINAL_SUBMISSION_REVIEW.md](./FINAL_SUBMISSION_REVIEW.md).
+
 Engineering Manager production merge decision for Amrutam Telemedicine Backend.
 
 **Decision date:** July 2026  

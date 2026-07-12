@@ -1,4 +1,13 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength, MaxLength } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Length,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class RegisterDto {
@@ -73,4 +82,54 @@ export class UpdateProfileDto {
   @IsString()
   @MaxLength(10)
   language?: string;
+}
+
+export class VerifyMfaSetupDto {
+  @ApiProperty({ description: '6-digit TOTP from authenticator app', example: '123456' })
+  @IsString()
+  @Length(6, 6)
+  @Matches(/^\d{6}$/)
+  otp!: string;
+}
+
+export class MfaChallengeDto {
+  @ApiProperty({ description: 'Short-lived MFA challenge token from login' })
+  @IsString()
+  @IsNotEmpty()
+  mfaToken!: string;
+
+  @ApiPropertyOptional({ description: '6-digit TOTP code' })
+  @IsOptional()
+  @IsString()
+  @Length(6, 6)
+  @Matches(/^\d{6}$/)
+  otp?: string;
+
+  @ApiPropertyOptional({ description: 'One-time backup recovery code' })
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  @MaxLength(32)
+  recoveryCode?: string;
+}
+
+export class DisableMfaDto {
+  @ApiProperty({ description: 'Current account password' })
+  @IsString()
+  @IsNotEmpty()
+  password!: string;
+
+  @ApiPropertyOptional({ description: '6-digit TOTP code' })
+  @IsOptional()
+  @IsString()
+  @Length(6, 6)
+  @Matches(/^\d{6}$/)
+  otp?: string;
+
+  @ApiPropertyOptional({ description: 'Backup recovery code' })
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  @MaxLength(32)
+  recoveryCode?: string;
 }

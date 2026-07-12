@@ -10,6 +10,7 @@ import { AuditService } from '@modules/audit/application/audit.service';
 import { RequestContext } from '@common/interfaces/api-response.interface';
 import { RegisterDto, LoginDto } from '../dto/auth.dto';
 import { UserStatus } from '@prisma/client';
+import { MfaService } from './mfa.service';
 
 export interface TokenPair {
   accessToken: string;
@@ -24,6 +25,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly auditService: AuditService,
+    private readonly mfaService: MfaService,
   ) {}
 
   async register(dto: RegisterDto, ctx: RequestContext) {
@@ -138,6 +140,28 @@ export class AuthService {
       data: { lastLoginAt: new Date() },
     });
 
+    const mfaFeatureOn = this.configService.get<boolean>('security.mfaEnabled') === true;
+    if (mfaFeatureOn && user.mfaEnabled) {
+      await this.auditService.log({
+        userId: user.id,
+        action: AUDIT_ACTIONS.LOGIN,
+        resourceType: 'user',
+        resourceId: user.id,
+        metadata: { mfaRequired: true },
+        ipAddress: ctx.ip,
+        userAgent: ctx.userAgent,
+        correlationId: ctx.correlationId,
+        requestId: ctx.requestId,
+      });
+
+      return {
+        mfaRequired: true,
+        mfaToken: this.mfaService.issueChallengeToken(user.id, user.email),
+        message: 'MFA required — complete with POST /auth/mfa/verify',
+        user: this.mapUser(user),
+      };
+    }
+
     await this.auditService.log({
       userId: user.id,
       action: AUDIT_ACTIONS.LOGIN,
@@ -156,7 +180,28 @@ export class AuthService {
       ctx,
     );
     return {
-      user: this.mapUser(user),
+      user: this.mapUser({ ...user, mfaEnabled: user.mfaEnabled }),
+      ...tokens,
+    };
+  }
+
+  async completeMfaLogin(
+    dto: { mfaToken: string; otp?: string; recoveryCode?: string },
+    ctx: RequestContext,
+  ) {
+    const identity = await this.mfaService.completeChallenge(dto, ctx);
+    await this.prisma.user.update({
+      where: { id: identity.userId },
+      data: { lastLoginAt: new Date() },
+    });
+    const tokens = await this.issueTokens(identity.userId, identity.email, identity.roles, ctx);
+    return {
+      user: {
+        id: identity.userId,
+        email: identity.email,
+        roles: identity.roles,
+        mfaEnabled: true,
+      },
       ...tokens,
     };
   }
@@ -272,6 +317,7 @@ export class AuthService {
     profile: { firstName: string; lastName: string } | null;
     roles: { role: { name: string } }[];
     doctor?: { id: string } | null;
+    mfaEnabled?: boolean;
   }) {
     return {
       id: user.id,
@@ -280,6 +326,7 @@ export class AuthService {
       roles: user.roles.map((r) => r.role.name),
       profile: user.profile,
       doctorId: user.doctor?.id,
+      mfaEnabled: user.mfaEnabled ?? false,
     };
   }
 }

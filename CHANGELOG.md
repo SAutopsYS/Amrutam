@@ -103,9 +103,18 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- Production TOTP MFA (enable, verify-setup, challenge, disable) with AES-encrypted secrets and recovery codes
+- MFA Prisma migration (`mfaPendingSecret`, `mfaRecoveryCodes`) + unit/integration tests
+- OpenAPI MFA paths and login MFA-challenge examples
+- AWS Terraform modules: networking, security groups, RDS, Redis, ALB, ECS, secrets, monitoring, optional EKS
+- k6 benchmark suite for auth, doctor search, booking, consultation (`npm run loadtest:benchmark`)
+- `npm run docker:up`, `loadtest:stress|spike|soak` scripts
+- LICENSE (UNLICENSED) + final submission review pack
+
 ### Planned
 
-- MFA TOTP enrollment flow
 - Redis auth cache for JWT validation at scale
 - Availability rules → automatic slot generation
 - Booking integration test suite

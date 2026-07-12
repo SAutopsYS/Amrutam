@@ -77,6 +77,11 @@ class EnvironmentVariables {
   @IsBoolean()
   MFA_ENABLED!: boolean;
 
+  @IsString()
+  @IsOptional()
+  @MinLength(32)
+  MFA_ENCRYPTION_KEY?: string;
+
   @Type(() => Number)
   @IsInt()
   BOOKING_CANCELLATION_HOURS!: number;

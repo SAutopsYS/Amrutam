@@ -2,15 +2,25 @@ terraform {
   required_version = ">= 1.6.0"
 
   required_providers {
-    # Uncomment and configure for your cloud provider:
-    # aws = { source = "hashicorp/aws", version = "~> 5.0" }
-    # google = { source = "hashicorp/google", version = "~> 5.0" }
-    # azurerm = { source = "hashicorp/azurerm", version = "~> 3.0" }
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
 
   backend "local" {
-    # Replace with remote backend for production:
-    # backend "s3" { bucket = "..." key = "..." region = "..." }
     path = "terraform.tfstate"
+  }
+}
+
+provider "aws" {
+  region = var.region
+
+  default_tags {
+    tags = var.tags
   }
 }

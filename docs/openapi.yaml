@@ -11,6 +11,8 @@ info:
     Authorization: Bearer <access_token>
     ```
     Obtain tokens via `POST /api/v1/auth/login`.
+    If MFA is enrolled and `MFA_ENABLED=true`, login returns
+    `{ mfaRequired: true, mfaToken }` — complete with `POST /api/v1/auth/mfa/verify`.
 
     ## Idempotency
     `POST /api/v1/appointments` requires an `Idempotency-Key` header (UUID recommended).
@@ -29,7 +31,7 @@ servers:
 
 tags:
   - name: Auth
-    description: Registration, login, token rotation, profile
+    description: Registration, login, TOTP MFA, token rotation, profile
   - name: Doctors
     description: Doctor discovery, slots, and leave management
   - name: Appointments
@@ -479,7 +481,10 @@ paths:
     post:
       tags: [Auth]
       summary: Login with email and password
-      description: Validates credentials, updates lastLoginAt, audits LOGIN or FAILED_LOGIN, returns access + refresh token pair.
+      description: |
+        Validates credentials. If MFA is enabled for the account and MFA_ENABLED=true,
+        returns `{ mfaRequired: true, mfaToken }` instead of access tokens.
+        Complete login via POST /auth/mfa/verify.
       security: []
       requestBody:
         required: true
@@ -492,21 +497,33 @@ paths:
               password: Password123!
       responses:
         '200':
-          description: Authentication successful
+          description: Tokens issued, or MFA challenge required
           content:
             application/json:
-              example:
-                success: true
-                data:
-                  user:
-                    id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
-                    email: patient@amrutam.test
-                    roles: [Patient]
-                  accessToken: eyJhbGciOiJIUzI1NiIs...
-                  refreshToken: eyJhbGciOiJIUzI1NiIs...
-                  expiresIn: 15m
-                requestId: 550e8400-e29b-41d4-a716-446655440000
-                timestamp: '2026-07-10T12:00:00.000Z'
+              examples:
+                tokensIssued:
+                  summary: MFA not enrolled — tokens returned
+                  value:
+                    success: true
+                    data:
+                      user:
+                        id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                        email: patient@amrutam.test
+                        roles: [Patient]
+                      accessToken: eyJhbGciOiJIUzI1NiIs...
+                      refreshToken: eyJhbGciOiJIUzI1NiIs...
+                      expiresIn: 15m
+                    requestId: 550e8400-e29b-41d4-a716-446655440000
+                    timestamp: '2026-07-10T12:00:00.000Z'
+                mfaChallenge:
+                  summary: MFA enrolled — challenge required
+                  value:
+                    success: true
+                    data:
+                      mfaRequired: true
+                      mfaToken: eyJhbGciOiJIUzI1NiIs...
+                    requestId: 550e8400-e29b-41d4-a716-446655440000
+                    timestamp: '2026-07-10T12:00:00.000Z'
         '400':
           $ref: '#/components/responses/ValidationError'
         '401':
@@ -535,6 +552,145 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
+
+  /auth/mfa/status:
+    get:
+      tags: [Auth]
+      summary: Get MFA enrollment status
+      description: Returns whether MFA is enabled, setup in progress, and feature flag state.
+      responses:
+        '200':
+          description: MFA status
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  mfaEnabled: false
+                  setupInProgress: true
+                  featureEnabled: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/mfa/enable:
+    post:
+      tags: [Auth]
+      summary: Begin MFA enrollment
+      description: Generates AES-encrypted TOTP secret, QR code data URL, and one-time recovery codes. Confirm with verify-setup.
+      responses:
+        '200':
+          description: Secret, QR, recovery codes
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  secret: JBSWY3DPEHPK3PXP
+                  qrCodeDataUrl: data:image/png;base64,...
+                  recoveryCodes: ['A1B2C-D3E4F']
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: MFA already enabled
+          content:
+            application/json:
+              example:
+                success: false
+                code: MFA_ALREADY_ENABLED
+                message: MFA is already enabled
+
+  /auth/mfa/verify-setup:
+    post:
+      tags: [Auth]
+      summary: Confirm MFA setup with TOTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [otp]
+              properties:
+                otp:
+                  type: string
+                  example: '123456'
+      responses:
+        '200':
+          description: MFA enabled
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  mfaEnabled: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/mfa/verify:
+    post:
+      tags: [Auth]
+      summary: Complete MFA challenge after login
+      description: Exchange mfaToken + OTP or recovery code for access/refresh tokens.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mfaToken]
+              properties:
+                mfaToken:
+                  type: string
+                otp:
+                  type: string
+                recoveryCode:
+                  type: string
+      responses:
+        '200':
+          description: Tokens issued
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  accessToken: eyJhbGciOiJIUzI1NiIs...
+                  refreshToken: eyJhbGciOiJIUzI1NiIs...
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/mfa/disable:
+    post:
+      tags: [Auth]
+      summary: Disable MFA
+      description: Requires password plus OTP or recovery code.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+                otp:
+                  type: string
+                recoveryCode:
+                  type: string
+      responses:
+        '200':
+          description: MFA disabled
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  mfaEnabled: false
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /auth/refresh:
     post:

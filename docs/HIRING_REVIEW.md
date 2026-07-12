@@ -1,5 +1,7 @@
 # Hiring Review
 
+> ⚠️ **Historical snapshot.** Prefer [FINAL_SUBMISSION_REVIEW.md](./FINAL_SUBMISSION_REVIEW.md) and [SUBMISSION_AUDIT.md](./SUBMISSION_AUDIT.md).
+
 Senior Backend Hiring Committee evaluation of this repository as a candidate submission.
 
 ## Candidate Level Assessed

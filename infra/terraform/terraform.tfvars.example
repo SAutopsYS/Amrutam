@@ -1,16 +1,25 @@
-project_name  = "amrutam"
-environment   = "staging"
-region        = "ap-south-1"
-vpc_cidr      = "10.0.0.0/16"
+project_name = "amrutam"
+environment  = "staging"
+region       = "ap-south-1"
 
-postgres_instance_class = "db.r6g.large"
-redis_node_type         = "cache.r6g.large"
+vpc_cidr = "10.0.0.0/16"
+availability_zones = ["ap-south-1a", "ap-south-1b"]
+
+postgres_instance_class = "db.t4g.medium"
+redis_node_type         = "cache.t4g.small"
+
+app_desired_count = 3
+app_cpu           = 512
+app_memory        = 1024
+
+# Replace with your ECR image after first push
+container_image = "123456789012.dkr.ecr.ap-south-1.amazonaws.com/amrutam-backend:latest"
+
+# Optional ACM cert for HTTPS
+certificate_arn = ""
 
 enable_kubernetes = false
 
-tags = {
-  Project     = "amrutam"
-  ManagedBy   = "terraform"
-  Application = "telemedicine-backend"
-  Environment = "staging"
-}
+# Override via TF_VAR_* or prompt — do not commit real secrets
+jwt_access_secret  = "replace-me-access-secret-min-32-characters!!"
+jwt_refresh_secret = "replace-me-refresh-secret-min-32-characters!"

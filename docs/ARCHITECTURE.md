@@ -396,7 +396,7 @@ flowchart LR
 - **Container:** Multi-stage Dockerfile, non-root user, healthcheck  
 - **Probes:** Liveness = memory; Readiness = DB + Redis + queue  
 - **Rollout:** `maxUnavailable: 0`, `preStop` hook, 60s grace period  
-- **IaC:** Terraform skeleton in `infra/terraform/`  
+- **IaC:** Real AWS Terraform modules in `infra/terraform/` (VPC, RDS, ElastiCache, ALB, ECS, secrets, monitoring, EKS)  
 
 Runbook: [RUNBOOK.md](./RUNBOOK.md)
 
@@ -421,7 +421,9 @@ Runbook: [RUNBOOK.md](./RUNBOOK.md)
 1. **Extract notification worker** — outbox events already define the contract  
 2. **Read replicas** — doctor search and admin dashboard off primary  
 3. **Redis auth cache** — 30s TTL on JWT validation at scale  
-4. **MFA TOTP** — schema ready (`mfa_enabled`, `mfa_secret`)  
+4. **Availability rules engine** — schema ready; auto slot generation not yet wired
+5. **Razorpay production adapter** — Mock provider active today
+6. **Raise unit coverage** to 40%+ and run staging k6 SLO validation  
 5. **Availability rules engine** — auto-generate slots from recurring rules  
 6. **Event streaming** — outbox rows → Kafka for analytics pipeline  
 7. **Materialized views** — dashboard aggregates at >1M appointment rows  

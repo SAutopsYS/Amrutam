@@ -565,7 +565,7 @@ All steps 4–11 are atomic.
 
 ### Q82. Is MFA implemented?
 
-**Answer:** `mfaEnabled` and `mfaSecret` exist on `User` model; no TOTP enrollment flow yet. Flag is architectural placeholder — documented as future in CHANGELOG.
+**Answer:** Yes — production TOTP MFA via `otplib`. Endpoints: `POST /auth/mfa/enable`, `verify-setup`, `verify`, `disable`, `GET /auth/mfa/status`. Secrets encrypted with AES-256-GCM (`mfa-crypto.util.ts`). Login returns `{ mfaRequired, mfaToken }` when enrolled. Feature-flagged via `MFA_ENABLED`.
 
 ---
 
@@ -661,25 +661,25 @@ All steps 4–11 are atomic.
 
 ### Q97. What is the Terraform state?
 
-**Answer:** `infra/terraform/` skeleton — VPC, EKS module stubs. Not production-applied; documents intended cloud layout.
+**Answer:** Real AWS modules under `infra/terraform/modules/` — networking, security groups, PostgreSQL (RDS), Redis (ElastiCache), secrets, ALB, ECS, monitoring, Kubernetes/EKS. Root `main.tf` wires them. Not applied to a live AWS account in this portfolio; `terraform plan` validates layout.
 
 ---
 
 ### Q98. What environment validation exists?
 
-**Answer:** `env.validation.ts` — Joi schema rejects weak JWT secrets in production, requires DATABASE_URL, REDIS_URL. Fail-fast on misconfiguration at boot.
+**Answer:** `env.validation.ts` — class-validator schema rejects weak JWT secrets in production, requires `DATABASE_URL`, `REDIS_HOST`/`REDIS_PORT`, MFA flags. Fail-fast on misconfiguration at boot.
 
 ---
 
 ### Q99. What are known production gaps?
 
-**Answer:** MFA flow, Razorpay adapter (Mock active), booking integration test, k6 SLO validation on staging, Terraform modules incomplete. Listed in `GO_LIVE_APPROVAL.md` and `ASSIGNMENT_COMPLIANCE.md`.
+**Answer:** Razorpay adapter (Mock active), availability rules → auto slot generation, booking concurrent integration test, staging k6 SLO numbers, unit coverage ~20% (gate 17%). MFA and Terraform modules are implemented. See `docs/SUBMISSION_AUDIT.md`.
 
 ---
 
 ### Q100. If you had one more week, what would you prioritize?
 
-**Answer:** (1) Booking integration test with concurrent slot contention, (2) k6 staging run with p99 < 500ms target, (3) outbox FAILED retry with exponential backoff, (4) raise unit coverage on cancel/reschedule. These are highest risk/review items per `STAFF_ENGINEER_REVIEW.md` — not new features, but hardening existing paths.
+**Answer:** (1) Booking integration test with concurrent slot contention, (2) k6 staging run with p99 < 500ms target, (3) outbox FAILED retry with exponential backoff, (4) raise unit coverage on cancel/reschedule. These harden existing paths — not new features.
 
 ---
 

@@ -231,7 +231,7 @@ npx prisma migrate resolve --applied <migration_name>  # if already applied manu
 
 ## Related Documents
 
-- [Observability Guide](OBSERVABILITY.md)
+- [Observability Guide](observability.md)
 - [Security Policy](../SECURITY.md)
 - [Kubernetes README](../infra/k8s/README.md)
 - [Platform Engineering](platform-engineering.md)

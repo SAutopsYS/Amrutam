@@ -7,6 +7,7 @@ import { JwtAuthGuard } from './infrastructure/jwt-auth.guard';
 import { AuthController } from './presentation/auth.controller';
 import { AuthService } from './application/services/auth.service';
 import { ProfileService } from './application/services/profile.service';
+import { MfaService } from './application/services/mfa.service';
 
 @Module({
   imports: [
@@ -20,7 +21,7 @@ import { ProfileService } from './application/services/profile.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [JwtStrategy, JwtAuthGuard, AuthService, ProfileService],
-  exports: [JwtModule, JwtAuthGuard, JwtStrategy, AuthService],
+  providers: [JwtStrategy, JwtAuthGuard, AuthService, ProfileService, MfaService],
+  exports: [JwtModule, JwtAuthGuard, JwtStrategy, AuthService, MfaService],
 })
 export class AuthModule {}

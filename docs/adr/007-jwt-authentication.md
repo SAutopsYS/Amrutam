@@ -22,9 +22,12 @@ Token payload includes `sub` (user ID) and role information for `RolesGuard`.
 **Negative:**
 - Immediate revocation requires a token blocklist (not yet implemented)
 - Token size grows with embedded claims — keep payload minimal
-- Auth endpoints (login/register) are infrastructure-ready but not yet exposed as HTTP routes
+- MFA adds a second factor via short-lived `mfaToken` before access/refresh issuance
 
 ## Alternatives Considered
 - **Server-side sessions (Redis)** — rejected; adds stateful dependency on every request
 - **OAuth2-only (no first-party JWT)** — deferred; first-party auth needed for MVP
 - **API keys for mobile** — rejected; JWT with refresh provides better expiry semantics
+
+## Implementation notes
+HTTP routes: `POST /auth/register`, `/login`, `/refresh`, `/logout`, `GET/PATCH /auth/me`, plus MFA under `/auth/mfa/*`. See `auth.controller.ts` and `mfa.service.ts`.

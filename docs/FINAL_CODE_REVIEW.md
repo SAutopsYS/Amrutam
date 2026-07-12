@@ -1,5 +1,8 @@
 # Final Code Review
 
+> ⚠️ **Historical snapshot.** Auth, doctors APIs, MFA, and Terraform have since been completed.  
+> Use [SUBMISSION_AUDIT.md](./SUBMISSION_AUDIT.md) and [FINAL_SUBMISSION_REVIEW.md](./FINAL_SUBMISSION_REVIEW.md) for current status.
+
 Principal Engineer review of the Amrutam Telemedicine Backend prior to production release.
 
 **Review date:** July 2026  

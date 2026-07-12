@@ -25,6 +25,7 @@ env:
   CORS_ORIGINS: http://localhost:3000
   SWAGGER_ENABLED: false
   MFA_ENABLED: false
+  MFA_ENCRYPTION_KEY: test-mfa-encryption-key-min-32-characters-long
   BOOKING_CANCELLATION_HOURS: 24
   PAYMENT_WEBHOOK_SECRET: test-webhook-secret-min-32-characters-long
   SERVICE_NAME: amrutam-backend
