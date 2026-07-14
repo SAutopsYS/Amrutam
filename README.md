@@ -1,4 +1,4 @@
-# Amrutam Telemedicine Backend
+#  Amrutam Telemedicine Backend
 
 [![CI](https://github.com/amrutam/amrutam-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/amrutam/amrutam-backend/actions/workflows/ci.yml)
 [![Node 20](https://img.shields.io/badge/node-20.x-green)](package.json)
